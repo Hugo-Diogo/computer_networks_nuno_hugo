@@ -20,7 +20,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 5
+#define BUF_SIZE 10
 
 volatile int STOP = FALSE;
 
@@ -122,7 +122,12 @@ int main(int argc, char *argv[]) {
   buf[1] = 0x03;
   buf[2] = 0x03;
   buf[3] = buf[1] ^ buf[2];
-  buf[4] = buf[0];
+  buf[8] = 0x00;
+  for (int i = 4; i <= 7; i++) {
+    buf[i] = i + 0x00;
+    buf[8] = buf[8] ^ buf[i];
+  }
+  buf[9] = buf[0];
 
   buf_temp = buf[2];
 
@@ -143,8 +148,6 @@ int main(int argc, char *argv[]) {
     }
     int bytes_write = read(fd, buf, BUF_SIZE);
 
-    
-
     if (bytes_write != -1) {
       alarm(0);
       alarmCount = 4;
@@ -152,8 +155,8 @@ int main(int argc, char *argv[]) {
         printf("var = 0x%02X\n", buf[i]);
       }
       printf("Got an answer\n");
-    }else{
-        printf("Got NO answer\n");
+    } else {
+      printf("Got NO answer\n");
     }
   }
 
