@@ -20,15 +20,32 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 5
+#define BUF_SIZE 4096
 
 volatile int STOP = FALSE;
 
 enum state {start, FLAG_RCV, A_RCV, C_RCV, BCC_OK, stop};
 
+char xor(unsigned char array[], int cont){
+    char test = 0x00;
+    for(int i = 4; i <= cont; i++){
+        test = test ^ array[i];    
+    }
+    return test;
+}
+
 int main(int argc, char *argv[])
 {
     //STATES
+
+    /* -Pseudo
+    if (cur == FLAG_RCV) {st = FLAG_RCV;}
+    if (cur == A_RCV) {st = A_RCV;}
+    if ((st == A_RCV) && (C_RCV == 1)) {st = C_RCV;}
+    if ((A && C) == BCC) {st = BCC_OK;}
+    if (cur == FLAG_RCV) {st = stop;}
+    if (cur == Other_RCV) {st = start;}
+    */
 
     enum state st = start;
 
@@ -97,23 +114,95 @@ int main(int argc, char *argv[])
 
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
-
-    //while (STOP == FALSE)
-    //{
+    unsigned char cur;
+    int cont = 0;
+    while (st != stop)
+    {
         // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
+        int bytes = read(fd, &cur, 1);
         buf[BUF_SIZE] = '\0'; // Set end of string to '\0', so we can printf
 
-        for (int i = 0; i <5; i++){
-            printf("buf = 0x%02X\n", buf[i]);
+        switch (st) {
+
+            case start:
+                if (cur == 0x7E /*FLAG_RCV*/) {
+                    st = FLAG_RCV;
+                    buf[cont] = cur;
+                }
+                else {cont--;}
+                break;
+
+            case FLAG_RCV:
+                if (cur == /*A_RCV*/ 0x03) {
+                    st = A_RCV;
+                    buf[cont] = cur;
+                }
+                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0;}
+                else {cont = -1; st = start;}
+                break;
+            
+            case A_RCV:
+                if (cur == /*C_RCV*/ 0x03) {
+                    st = C_RCV;
+                    buf[cont] = cur;
+                }
+                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0; st = FLAG_RCV;}
+                else {cont = -1; st = start;}
+                break;
+            
+            case C_RCV:
+                if (cur == (buf[1] ^ buf[2])) {
+                    st = BCC_OK;
+                    buf[cont] = cur;
+                }
+                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0; st = FLAG_RCV;}
+                else {cont = -1; st = start;}
+                break;
+            
+            case BCC_OK:
+                if (cur == 0x7E) {
+                    buf[cont] = cur;
+                    if(xor(buf, cont - 2) == buf[cont - 1]){
+                        st = stop;
+                    }
+                    else {cont = 0; st = FLAG_RCV;}
+
+                }
+                else {buf[cont] = cur;}
+                break;
+
+            case stop:
+            break;
+            
         }
+        
+        printf("%d\n", cont);
+
+        cont++;
+
         //printf(":%s:%d\n", buf, bytes);
         //if (buf[0] == 0x7E)
-        STOP = TRUE;
-    //}
+    }
+
+        /* -Pseudo
+        if (cur == FLAG_RCV) {st = FLAG_RCV;}
+        if (cur == A_RCV) {st = A_RCV;}
+        if ((st == A_RCV) && (C_RCV == 1)) {st = C_RCV;}
+        if ((A && C) == BCC) {st = BCC_OK;}
+        if (cur == FLAG_RCV) {st = stop;}
+        if (cur == Other_RCV) {st = start;}
+        */
+
+        
+
+        
+        
+        for (int i = 0; i < cont; i++){
+            printf("buf = 0x%02X\n", buf[i]);
+        }
         buf[2] = 0x01;
         int bytes_sent = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", bytes);
+        printf("%d bytes written\n", cont);
         sleep(1);
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
