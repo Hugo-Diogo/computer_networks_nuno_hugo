@@ -1,6 +1,6 @@
-// Write to serial port in non-canonical mode
+// Wite to serial port in non-canonical mode
 //
-// Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
+//  Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
 
 #include <fcntl.h>
 #include <signal.h>
@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
@@ -20,7 +21,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 10
+#define BUF_SIZE 1024
 
 volatile int STOP = FALSE;
 
@@ -41,6 +42,9 @@ void alarmHandler(int signal) {
 
 //--------------------------------------------------------------------main
 int main(int argc, char *argv[]) {
+
+  srand(time(NULL));
+  int value = rand();
   // Set alarm function handler.
   // Install the function signal to be automatically invoked when the timer
   // expires, invoking in its turn the user function alarmHandler
@@ -118,57 +122,79 @@ int main(int argc, char *argv[]) {
       buf[i] = 'a' + i % 26;
   } */
   // Definition of buffer
-  buf[0] = 0x7E;
-  buf[1] = 0x03;
-  buf[2] = 0x03;
-  buf[3] = buf[1] ^ buf[2];
-  buf[8] = 0x00;
-  for (int i = 4; i <= 7; i++) {
-    buf[i] = i + 0x00;
-    buf[8] = buf[8] ^ buf[i];
-  }
-  buf[9] = buf[0];
+  for (int j = 0; j < 4; j++) {
 
-  buf_temp = buf[2];
-
-  while (alarmCount < 4) {
-    if (alarmEnabled == FALSE) {
-      alarm(3); // Set alarm to be triggered in 3s
-      alarmEnabled = TRUE;
-
-      printf("Alarm configured\n");
-
-      // In non-canonical mode, '\n' does not end the writing.
-      // Test this condition by placing a '\n' in the middle of the buffer.
-      // The whole buffer must be sent even with the '\n'.
-      // buf[5] = '\n';
-
-      int bytes = write(fd, buf, BUF_SIZE);
-      printf("%d bytes written\n", bytes);
-    }
-    int bytes_write = read(fd, buf, BUF_SIZE);
-
-    if (bytes_write != -1) {
-      alarm(0);
-      alarmCount = 4;
-      for (int i = 0; i < 5; i++) {
-        printf("var = 0x%02X\n", buf[i]);
-      }
-      printf("Got an answer\n");
+    buf[0] = 0x7E;
+    buf[1] = 0x03;
+    if (j % 2 == 0) {
+      buf[2] = 0x00;
     } else {
-      printf("Got NO answer\n");
+      buf[2] = 0x40;
+    }
+
+    buf[3] = buf[1] ^ buf[2];
+    int hn = 0x00;
+    int count = 0;
+    for (int i = 4; i <= 500; i++) {
+      buf[i] = rand() % 256;
+      count++;
+
+      if (buf[i] == 0x7E) {
+        buf[i] = 0x7D;
+        hn = hn ^ buf[i];
+        i++;
+        buf[i] = 0x5E;
+        hn = hn ^ buf[i];
+        count++;
+      } else {
+        hn = hn ^ buf[i];
+      }
+    }
+    buf[4 + count] = hn;
+    buf[5 + count] = buf[0];
+
+    buf_temp = 0x01;
+
+    while (alarmCount < 4) {
+      if (alarmEnabled == FALSE) {
+        alarm(3); // Set alarm to be triggered in 3s
+        alarmEnabled = TRUE;
+
+        printf("Alarm configured\n");
+
+        // In non-canonical mode, '\n' does not end the writing.
+        // Test this condition by placing a '\n' in the middle of the buffer.
+        // The whole buffer must be sent even with the '\n'.
+        // buf[5] = '\n';
+
+        int bytes = write(fd, buf, count + 6);
+        printf("%d bytes written\n", bytes);
+      }
+      unsigned char buf_receive[5];
+      int bytes_write = read(fd, buf_receive, 5);
+
+      if (bytes_write != -1 && buf_receive[2] == 0x01) {
+        alarm(0);
+        alarmCount = 4;
+        /*for (int i = 0; i < sizeof(buf); i++) {
+          printf("var = 0x%02X\n", buf[i]);
+        }*/
+        printf("Got an answer\n");
+      } else {
+        printf("Got NO answer\n");
+        break;
+      }
+    }
+
+    // Wait until all bytes have been written to the serial port
+    sleep(1);
+
+    // Restore the old port settings
+    if (tcsetattr(fd, TCSANOW, &oldtio) == -1) {
+      perror("tcsetattr");
+      exit(-1);
     }
   }
-
-  // Wait until all bytes have been written to the serial port
-  sleep(1);
-
-  // Restore the old port settings
-  if (tcsetattr(fd, TCSANOW, &oldtio) == -1) {
-    perror("tcsetattr");
-    exit(-1);
-  }
-
   close(fd);
 
   return 0;
