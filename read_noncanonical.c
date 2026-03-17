@@ -35,7 +35,45 @@ char xor(unsigned char array[], int cont){
 }
 
 int main(int argc, char *argv[])
-{
+{   
+    //RR, REJ and DISC buffers
+
+    unsigned char buf_RR0[5 + 1] = {0};
+    unsigned char buf_RR1[5 + 1] = {0};
+    unsigned char buf_REJ0[5 + 1] = {0};
+    unsigned char buf_REJ1[5 + 1] = {0};
+    unsigned char buf_DISC[5 + 1] = {0};
+
+    buf_RR0[0] = 0x7E;
+    buf_RR0[1] = 0x01;
+    buf_RR0[2] = 0x05;
+    buf_RR0[3] = buf_RR0[1] ^ buf_RR0[2];
+    buf_RR0[4] = 0x7E;
+
+    buf_RR1[0] = 0x7E;
+    buf_RR1[1] = 0x01;
+    buf_RR1[2] = 0x85;
+    buf_RR1[3] = buf_RR1[1] ^ buf_RR1[2];
+    buf_RR1[4] = 0x7E;
+
+    buf_REJ0[0] = 0x7E;
+    buf_REJ0[1] = 0x01;
+    buf_REJ0[2] = 0x01;
+    buf_REJ0[3] = buf_REJ0[1] ^ buf_REJ0[2];
+    buf_REJ0[4] = 0x7E;
+
+    buf_REJ1[0] = 0x7E;
+    buf_REJ1[1] = 0x01;
+    buf_REJ1[2] = 0x81;
+    buf_REJ1[3] = buf_REJ1[1] ^ buf_REJ1[2];
+    buf_REJ1[4] = 0x7E;
+
+    buf_DISC[0] = 0x7E;
+    buf_DISC[1] = 0x01;
+    buf_DISC[2] = 0x0B;
+    buf_DISC[3] = buf_DISC[1] ^ buf_DISC[2];
+    buf_DISC[4] = 0x7E;
+
     //STATES
 
     /* -Pseudo
@@ -116,6 +154,7 @@ int main(int argc, char *argv[])
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
     unsigned char cur;
     int cont = 0;
+    unsigned char frame = 0x00;
     while (st != stop)
     {
         // Returns after 5 chars have been input
@@ -156,23 +195,39 @@ int main(int argc, char *argv[])
                     buf[cont] = cur;
                 }
                 else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0; st = FLAG_RCV;}
-                else {cont = -1; st = start;}
+                else {cont = -1; st = start; printf("BCC1 ERROR!");}
                 break;
             
             case BCC_OK:
                 if (cur == 0x7E) {
                     buf[cont] = cur;
                     if(xor(buf, cont - 2) == buf[cont - 1]){
+                        if (buf[2] == 0x00) {write(fd, buf_RR1, 5);}
+                        if (buf[2] == 0x40) {write(fd, buf_RR0, 5);}
                         st = stop;
                     }
-                    else {cont = 0; st = FLAG_RCV;}
+                    else {
+                        if ((frame != buf[2])) {
+                            if (buf[2] == 0x00) {write(fd, buf_REJ0, 5);}
+                            if (buf[2] == 0x40) {write(fd, buf_REJ1, 5);}
+                        }
+                        else {
+                            if (buf[2] == 0x00) {write(fd, buf_RR1, 5);}
+                            if (buf[2] == 0x40) {write(fd, buf_RR0, 5);}
+                            st = stop;
+                            break;
+                        }
+                        cont = 0; 
+                        st = FLAG_RCV;
+                    }
 
                 }
                 else {buf[cont] = cur;}
                 break;
 
             case stop:
-            break;
+                write(fd, buf_DISC, 5);
+                break;
             
         }
         
