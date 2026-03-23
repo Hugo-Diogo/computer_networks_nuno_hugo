@@ -2,6 +2,19 @@
 //
 // Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
 
+
+
+/*
+Things to change:
+
+For the application layer we need to send a START packet with name and size of the file. THIS IS A CONTROL PACKET.    
+The we need to divide the file into smaller parts and include a header in each one;
+Then we send that DATA packet.
+
+After sending the last data packet we need to announce to the recveiver that the transfer is finalised
+->Send another CONTROL packet indicating that the transfer has ended 
+
+*/
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
