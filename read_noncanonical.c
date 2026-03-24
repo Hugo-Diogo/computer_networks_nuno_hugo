@@ -23,6 +23,7 @@ After sending the last data packet we need to announce to the recveiver that the
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include "libcom.h"
 
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
@@ -48,44 +49,7 @@ char xor(unsigned char array[], int cont){
 }
 
 int main(int argc, char *argv[])
-{   
-    //RR, REJ and DISC buffers
-
-    unsigned char buf_RR0[5 + 1] = {0};
-    unsigned char buf_RR1[5 + 1] = {0};
-    unsigned char buf_REJ0[5 + 1] = {0};
-    unsigned char buf_REJ1[5 + 1] = {0};
-    unsigned char buf_DISC[5 + 1] = {0};
-
-    buf_RR0[0] = 0x7E;
-    buf_RR0[1] = 0x01;
-    buf_RR0[2] = 0x05;
-    buf_RR0[3] = buf_RR0[1] ^ buf_RR0[2];
-    buf_RR0[4] = 0x7E;
-
-    buf_RR1[0] = 0x7E;
-    buf_RR1[1] = 0x01;
-    buf_RR1[2] = 0x85;
-    buf_RR1[3] = buf_RR1[1] ^ buf_RR1[2];
-    buf_RR1[4] = 0x7E;
-
-    buf_REJ0[0] = 0x7E;
-    buf_REJ0[1] = 0x01;
-    buf_REJ0[2] = 0x01;
-    buf_REJ0[3] = buf_REJ0[1] ^ buf_REJ0[2];
-    buf_REJ0[4] = 0x7E;
-
-    buf_REJ1[0] = 0x7E;
-    buf_REJ1[1] = 0x01;
-    buf_REJ1[2] = 0x81;
-    buf_REJ1[3] = buf_REJ1[1] ^ buf_REJ1[2];
-    buf_REJ1[4] = 0x7E;
-
-    buf_DISC[0] = 0x7E;
-    buf_DISC[1] = 0x01;
-    buf_DISC[2] = 0x0B;
-    buf_DISC[3] = buf_DISC[1] ^ buf_DISC[2];
-    buf_DISC[4] = 0x7E;
+{
 
     //STATES
 
@@ -165,62 +129,65 @@ int main(int argc, char *argv[])
 
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
-    unsigned char cur;
-    int cont = 0;
-    unsigned char frame = 0x00;
+    unsigned char cur1;
+    int cont1 = 0;
+    unsigned char frame1 = 0x00;
+    unsigned char frame2 = 0x40;
+    int data_flag = 0;
+    
     while (st != stop)
     {
         // Returns after 5 chars have been input
-        int bytes = read(fd, &cur, 1);
+        int bytes = read(fd, &cur1, 1);
         buf[BUF_SIZE] = '\0'; // Set end of string to '\0', so we can printf
 
         switch (st) {
 
             case start:
-                if (cur == 0x7E /*FLAG_RCV*/) {
+                if (cur1 == 0x7E /*FLAG_RCV*/) {
                     st = FLAG_RCV;
-                    buf[cont] = cur;
+                    buf[cont1] = cur1;
                 }
-                else {cont--;}
+                else {cont1--;}
                 break;
 
             case FLAG_RCV:
-                if (cur == /*A_RCV*/ 0x03) {
+                if (cur1 == /*A_RCV*/ 0x03) {
                     st = A_RCV;
-                    buf[cont] = cur;
+                    buf[cont1] = cur1;
                 }
-                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0;}
-                else {cont = -1; st = start;}
+                else if (cur1 == 0x7E /*FLAG_RCV*/) {cont1 = 0;}
+                else {cont1 = -1; st = start;}
                 break;
             
             case A_RCV:
-                if (cur == /*C_RCV*/ 0x03) {
+                if (cur1 == /*C_RCV*/ 0x03) {
                     st = C_RCV;
-                    buf[cont] = cur;
+                    buf[cont1] = cur1;
                 }
-                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0; st = FLAG_RCV;}
-                else {cont = -1; st = start;}
+                else if (cur1 == 0x7E /*FLAG_RCV*/) {cont1 = 0; st = FLAG_RCV;}
+                else {cont1 = -1; st = start;}
                 break;
             
             case C_RCV:
-                if (cur == (buf[1] ^ buf[2])) {
+                if (cur1 == (buf[1] ^ buf[2])) {
                     st = BCC_OK;
-                    buf[cont] = cur;
+                    buf[cont1] = cur1;
                 }
-                else if (cur == 0x7E /*FLAG_RCV*/) {cont = 0; st = FLAG_RCV;}
-                else {cont = -1; st = start; printf("BCC1 ERROR!");}
+                else if (cur1 == 0x7E /*FLAG_RCV*/) {cont1 = 0; st = FLAG_RCV;}
+                else {cont1 = -1; st = start; printf("BCC1 ERROR!");}
                 break;
             
             case BCC_OK:
-                if (cur == 0x7E) {
-                    buf[cont] = cur;
-                    if(xor(buf, cont - 2) == buf[cont - 1]){
+                if (cur1 == 0x7E) {
+                    buf[cont1] = cur1;
+                    if(xor(buf, cont1 - 2) == buf[cont1 - 1]){
                         if (buf[2] == 0x00) {write(fd, buf_RR1, 5);}
                         if (buf[2] == 0x40) {write(fd, buf_RR0, 5);}
                         st = stop;
                     }
                     else {
-                        if ((frame != buf[2])) {
+                        if ((frame1 != buf[2])) {
                             if (buf[2] == 0x00) {write(fd, buf_REJ0, 5);}
                             if (buf[2] == 0x40) {write(fd, buf_REJ1, 5);}
                         }
@@ -230,23 +197,45 @@ int main(int argc, char *argv[])
                             st = stop;
                             break;
                         }
-                        cont = 0; 
+                        cont1 = 0; 
                         st = FLAG_RCV;
                     }
 
                 }
-                else {buf[cont] = cur;}
+
+                if((cur1 == 0x5E) && (data_flag = 1))
+                {
+                    data_flag = 0;
+                    buf[cont1 - 1] = 0x7E;
+                    cont1--;
+                }
+
+                if((cur1 == 0x5D) && (data_flag = 1))
+                {
+                    data_flag = 0;
+                    cont1--;
+                }
+
+                if ((cur1 == 0x7D) && (data_flag = 0)) 
+                {
+                    data_flag = 1;
+                    buf[cont1] = cur1;
+                }
+
+                else {buf[cont1] = cur1;}
                 break;
 
             case stop:
+                if (frame1 == 0x00) {frame1 = 0x40;}
+                if (frame1 == 0x40) {frame1 = 0x00;}
                 write(fd, buf_DISC, 5);
                 break;
             
         }
         
-        printf("%d\n", cont);
+        printf("%d\n", cont1);
 
-        cont++;
+        cont1++;
 
         //printf(":%s:%d\n", buf, bytes);
         //if (buf[0] == 0x7E)
@@ -261,16 +250,14 @@ int main(int argc, char *argv[])
         if (cur == Other_RCV) {st = start;}
         */
 
-        
 
         
-        
-        for (int i = 0; i < cont; i++){
+        for (int i = 0; i < cont1; i++){
             printf("buf = 0x%02X\n", buf[i]);
         }
         buf[2] = 0x01;
         int bytes_sent = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", cont);
+        printf("%d bytes written\n", cont1);
         sleep(1);
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
@@ -283,6 +270,17 @@ int main(int argc, char *argv[])
     }
 
     close(fd);
+
+    
+    // Application decoder
+
+    st = start;
+
+    unsigned char appbuf[BUF_SIZE + 1] = {0};
+    unsigned char cur2;
+    int cont2 = 0;
+
+
 
     return 0;
 }
