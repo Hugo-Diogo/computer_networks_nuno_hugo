@@ -185,95 +185,69 @@ int main(int argc, char *argv[])
                 
                 break;
 
-            case information:
+           case information:
 
     if (cur == 0x7E) {
 
-        // 🔴 verificar mínimo
         if (i < 1) {
             st = FLAG_RCV;
             break;
         }
-        int kj = i - 1;
-        unsigned char received_bcc2 = 0x00;
-        if(buf[i - 1] == 0x5D){
-            received_bcc2 = 0x7D;
-            kj--;
-        }else if(buf[i - 1] == 0x5E)
-        {
-            received_bcc2 = 0x7E;
-            kj--;
-        }
-        else {
-            received_bcc2 = buf[i - 1];
-        }
 
-        // 🔴 calcular BCC2 (sem o último byte)
+        // 🔴 separar BCC2
+        unsigned char received_bcc2 = buf[i - 1];
+
+        // 🔴 calcular BCC2
         unsigned char calc_bcc2 = 0x00;
-        for (int k = 0; k < kj; k++) {
+        for (int k = 0; k < i - 1; k++) {
             calc_bcc2 ^= buf[k];
         }
 
         if (calc_bcc2 == received_bcc2) {
 
-            // ✔️ BCC OK → destuffing
-            long size = distuffing(buf, kj, destuffed);
+            // ✔️ destuffing
+            long size = distuffing(buf, i - 1, destuffed);
 
             print_hex(destuffed, size);
 
-            // 🔥 AQUI entra a lógica da sequência
-            if (c_rcv == 0x00) { // trama 0
+            // 🔥 sequência correta
+            if ((c_rcv == 0x00 && j == 0) || (c_rcv == 0x40 && j == 1)) {
 
+                // 🔥 APPLICATION LAYER
+                if (destuffed[0] == 0x02) {
+                    printf("START packet\n");
+                    f_file = handle_start_packet(destuffed, size);
+                }
+                else if (destuffed[0] == 0x01) {
+                    printf("DATA packet\n");
+                    if (f_file)
+                        handle_data_packet(destuffed, f_file);
+                }
+                else if (destuffed[0] == 0x03) {
+                    printf("END packet\n");
+                    handle_end_packet(f_file);
+                    st = stop;
+                }
+
+                // 🔥 envia RR correto
                 if (j == 0) {
-                    if(destuffed[0] == 0x02){
-                        printf("Received START packet\n");
-                        f_file = handle_start_packet(destuffed, size);
-                    } else if(destuffed[0] == 0x03){
-                        printf("Received END packet\n");
-                        st = stop;
-                    }
-                    else {
-                        printf("Received DATA packet\n");
-                        handle_data_packet(destuffed, f_file);
-                        send_RR(fd, 1);
-                        j = 1;
-                    }
-
-
-
-                }
-                else {
-                    // duplicada
                     send_RR(fd, 1);
-                }
-            }
-            else if (c_rcv == 0x40) { // trama 1
-
-                if (j == 1) {
-                    if(destuffed[0] == 0x02){
-                        printf("Received START packet\n");
-                        f_file = handle_start_packet(destuffed, size);
-                    } else if(destuffed[0] == 0x03){
-                        printf("Received END packet\n");
-                        st = stop;
-                    }
-                    else {
-                        printf("Received DATA packet\n");
-                        handle_data_packet(destuffed, f_file);
-                        send_RR(fd, 0);
-                        j = 0;
-                    }
-
-
-                }
-                else {
-                    // duplicada
+                    j = 1;
+                } else {
                     send_RR(fd, 0);
+                    j = 0;
                 }
+
+            } else {
+                // 🔁 duplicada
+                if (j == 0)
+                    send_RR(fd, 1);
+                else
+                    send_RR(fd, 0);
             }
 
         } else {
-            // ❌ erro BCC2
+            // ❌ erro
             if (c_rcv == 0x00)
                 send_REJ(fd, 0);
             else
@@ -286,14 +260,12 @@ int main(int argc, char *argv[])
         st = FLAG_RCV;
     }
     else {
-        // guardar dados
         if (i < BUF_SIZE) {
             buf[i++] = cur;
         }
     }
 
     break;
-                
 
             case stop:
                 send_DISC(fd);
