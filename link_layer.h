@@ -36,7 +36,7 @@ int build_frame(unsigned char *frame, unsigned char *data, int data_size, int j)
 
 
 
-
+long distuffing(unsigned char *buf, int size, unsigned char *destuffed);
 
 
 
@@ -45,5 +45,3 @@ void send_RR(int fd, int r);
 void send_REJ(int fd, int r);
 
 void send_DISC(int fd);
-
-void send_CONN(int fd);
