@@ -171,14 +171,16 @@ int main(int argc, char *argv[])
                 if (cur == 0x7E) {
                     if (c_rcv == 0x03) {
                         printf("0x7E \n 0x03 \n 0x00 \n 0x03 \n 0x7E\n");
+
                         send_RR(fd, 0);
                         st = FLAG_RCV;
                     } else{
+                        printf("uhhhhhhhhhhhhhhhhhhhhhhh\n");
                         send_REJ(fd, j);
                         st = FLAG_RCV;
                         }
                 }else if (c_rcv == 0x00 || c_rcv == 0x40){
-
+                            printf("ahhhhhhhhhhhhhhhhhhhhhhh\n");
                             st = information;
 
                 }
@@ -196,6 +198,7 @@ case information:
 
         // 🔴 1. DESTUFF PRIMEIRO (IMPORTANTE)
         long size = distuffing(buf, i, destuffed);
+        print_hex(destuffed, size);
 
         if (size < 1) {
             st = FLAG_RCV;
@@ -239,27 +242,29 @@ case information:
 
                 // 🔥 RR
                 if (j == 0) {
+                    printf("OK! RR1");
                     send_RR(fd, 1);
                     j = 1;
                 } else {
+                    printf("OK! RR0");
                     send_RR(fd, 0);
                     j = 0;
                 }
 
             } else {
                 // 🔁 duplicada
-                if (j == 0)
-                    send_RR(fd, 1);
-                else
-                    send_RR(fd, 0);
+                if (j == 0) {
+                    printf("RR1 DUP"); send_RR(fd, 1);}
+                else {
+                    printf("RR0 DUP"); send_RR(fd, 0);}
             }
 
         } else {
             // ❌ erro BCC2
-            if (c_rcv == 0x00)
-                send_REJ(fd, 0);
-            else
-                send_REJ(fd, 1);
+            if (c_rcv == 0x00){
+                    printf("ERRO! 0"); send_REJ(fd, 0);}
+            else{
+                    printf("ERRO! 1"); send_REJ(fd, 1);}
         }
 
         // reset
