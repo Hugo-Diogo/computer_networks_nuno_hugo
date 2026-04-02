@@ -300,6 +300,7 @@ int main(int argc, char *argv[])
                 send_DISC(fd);
                 break;
         }
+        sleep(1);
     }
 
 
@@ -319,13 +320,7 @@ int main(int argc, char *argv[])
 
         
         
-        for (int i = 0; i < cont; i++){
-            printf("buf = 0x%02X\n", buf[i]);
-        }
-        buf[2] = 0x01;
-        int bytes_sent = write(fd, buf, BUF_SIZE);
-        printf("%d bytes written\n", cont);
-        sleep(1);
+        
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
 
