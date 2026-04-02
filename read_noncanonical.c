@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
                 
                 break;
 
-           case information:
+case information:
 
     if (cur == 0x7E) {
 
@@ -194,19 +194,27 @@ int main(int argc, char *argv[])
             break;
         }
 
-        // 🔴 separar BCC2
-        unsigned char received_bcc2 = buf[i - 1];
+        // 🔴 1. DESTUFF PRIMEIRO (IMPORTANTE)
+        long size = distuffing(buf, i, destuffed);
 
-        // 🔴 calcular BCC2
-        unsigned char calc_bcc2 = 0x00;
-        for (int k = 0; k < i - 1; k++) {
-            calc_bcc2 ^= buf[k];
+        if (size < 1) {
+            st = FLAG_RCV;
+            break;
         }
 
-        if (calc_bcc2 == received_bcc2) {
+        // 🔴 2. SEPARAR BCC2 (já destuffed)
+        unsigned char received_bcc2 = destuffed[size - 1];
 
-            // ✔️ destuffing
-            long size = distuffing(buf, i - 1, destuffed);
+        // 🔴 3. CALCULAR BCC2
+        unsigned char calc_bcc2 = 0x00;
+        for (int k = 0; k < size - 1; k++) {
+            calc_bcc2 ^= destuffed[k];
+        }
+
+        // DEBUG (opcional)
+        // printf("BCC calc=%02X recv=%02X\n", calc_bcc2, received_bcc2);
+
+        if (calc_bcc2 == received_bcc2) {
 
             print_hex(destuffed, size);
 
@@ -229,7 +237,7 @@ int main(int argc, char *argv[])
                     st = stop;
                 }
 
-                // 🔥 envia RR correto
+                // 🔥 RR
                 if (j == 0) {
                     send_RR(fd, 1);
                     j = 1;
@@ -247,7 +255,7 @@ int main(int argc, char *argv[])
             }
 
         } else {
-            // ❌ erro
+            // ❌ erro BCC2
             if (c_rcv == 0x00)
                 send_REJ(fd, 0);
             else
@@ -256,7 +264,6 @@ int main(int argc, char *argv[])
 
         // reset
         i = 0;
-        t_bcc2 = 0x00;
         st = FLAG_RCV;
     }
     else {
@@ -264,6 +271,8 @@ int main(int argc, char *argv[])
             buf[i++] = cur;
         }
     }
+
+    break;
 
     break;
 
