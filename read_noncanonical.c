@@ -36,7 +36,6 @@ After sending the last data packet we need to announce to the recveiver that the
 
 #define BUF_SIZE 1024
 
-volatile int STOP = FALSE;
 
 enum state {start, FLAG_RCV, A_RCV, C_RCV, information, BCC_OK, stop};
 
@@ -138,6 +137,7 @@ int main(int argc, char *argv[])
     unsigned char t_bcc2 = 0x00;
     while(1)
     {
+        read(fd, &cur, 1);
         switch(st){
             case start:
                 if (cur == 0x7E) st = FLAG_RCV;
@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
             case BCC_OK:
                 if (cur == 0x7E) {
                     if (c_rcv == 0x03) {
+                        printf("0x7E \n 0x03 \n 0x00 \n 0x03 \n 0x7E\n");
                         send_RR(fd, 0);
                         st = FLAG_RCV;
                     } else{
@@ -205,7 +206,7 @@ int main(int argc, char *argv[])
                             if(buf[i - 1] == 0x5E){
                                 if(t_bcc2 == 0x7E){
                                     //distuffing
-                                int size = distuffing(buf, i - 3, destuffed);
+                                long size = distuffing(buf, i - 3, destuffed);
                                 print_hex(destuffed, size);
                                     send_RR(fd, 1);
                                     st = FLAG_RCV;
@@ -217,7 +218,7 @@ int main(int argc, char *argv[])
                                 }
                             }else if(buf[i - 1] == 0x5D){
                                 if(t_bcc2 == 0x7D){
-                                int size = distuffing(buf, i - 3, destuffed);
+                                long size = distuffing(buf, i - 3, destuffed);
                                 print_hex(destuffed, size);
                                     send_RR(fd, 1);
                                     st = FLAG_RCV;
@@ -229,7 +230,7 @@ int main(int argc, char *argv[])
                         }else{
                             if(t_bcc2 == buf[i - 1]){
                                 //distuffing
-                                int size = distuffing(buf, i - 2, destuffed);
+                                long size = distuffing(buf, i - 2, destuffed);
                                 print_hex(destuffed, size);
                                 send_RR(fd, 1);
                                 st = FLAG_RCV;
@@ -246,7 +247,7 @@ int main(int argc, char *argv[])
                             if(buf[i - 1] == 0x5E){
                                 if(t_bcc2 == 0x7E){
                                     //
-                                int size = distuffing(buf, i - 3, destuffed);
+                                long size = distuffing(buf, i - 3, destuffed);
                                 print_hex(destuffed, size);
                                     send_RR(fd, 0);
                                     st = FLAG_RCV;
@@ -258,7 +259,7 @@ int main(int argc, char *argv[])
                                 }
                             }else if(buf[i - 1] == 0x5D){
                                 if(t_bcc2 == 0x7D){
-                                int size = distuffing(buf, i - 3, destuffed);
+                                long size = distuffing(buf, i - 3, destuffed);
                                 print_hex(destuffed, size);
                                     send_RR(fd, 0);
                                     st = FLAG_RCV;
@@ -270,7 +271,7 @@ int main(int argc, char *argv[])
                         }else{
                             if(t_bcc2 == buf[i - 1]){
                                 //distuffing
-                                int size = distuffing(buf, i - 2, destuffed);
+                                long size = distuffing(buf, i - 2, destuffed);
                                 print_hex(destuffed, size);
                                 send_RR(fd, 0);
                                 st = FLAG_RCV;
