@@ -321,6 +321,21 @@ void send_DISC(int fd) {
     write(fd, frame, 5);
 }
 
+void send_CONN(int fd) {
+    
+    unsigned char frame[5];
+
+    frame[0] = FLAG;
+    frame[1] = A_RX;
+    frame[2] = 0x03;
+
+    frame[3] = frame[1] ^ frame[2];
+    frame[4] = FLAG;
+
+    write(fd, frame, 5);
+
+}
+
 
 long distuffing(unsigned char *buf, int size, unsigned char *destuffed) {
     int j = 0;
