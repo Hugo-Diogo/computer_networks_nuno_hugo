@@ -25,6 +25,7 @@ After sending the last data packet we need to announce to the recveiver that the
 #include <unistd.h>
 #include "link_layer.h"
 
+
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
 #define BAUDRATE B38400
@@ -37,7 +38,7 @@ After sending the last data packet we need to announce to the recveiver that the
 
 volatile int STOP = FALSE;
 
-enum state {start, FLAG_RCV, A_RCV, C_RCV, BCC_OK, stop};
+enum state {start, FLAG_RCV, A_RCV, C_RCV, information, BCC_OK, stop};
 
 char xor(unsigned char array[], int cont){
     char test = 0x00;
@@ -127,131 +128,183 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Loop for input
-    unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
+    unsigned char buf[BUF_SIZE];
     unsigned char cur;
-    int cont = 0;
-    unsigned char frame = 0x00;
-    while (1)
+    unsigned char destuffed[BUF_file_SIZE];
+    int i = 0;
+    int j = 0;
+    unsigned char a_rcv; // +1: Save space for the final '\0' char
+    unsigned char c_rcv;
+    unsigned char t_bcc2 = 0x00;
+    while(1)
     {
-        // Returns after 5 chars have been input
-        int bytes = read(fd, &cur, 1);
-        if (bytes == 0){
-            printf("No bytes read. Exiting.\n");
-            break;
-        }
-        buf[BUF_SIZE] = '\0'; // Set end of string to '\0', so we can printf
-
-        switch (st) {
-
+        switch(st){
             case start:
-                if (cur == 0x7E) {
-                    st = FLAG_RCV;
-                    buf[cont] = cur;
-                }
-                else {
-                    cont--;
-                }
+                if (cur == 0x7E) st = FLAG_RCV;
                 break;
 
             case FLAG_RCV:
-                if (cur == 0x03) {
+                if (cur == 0x03){
+                    a_rcv = cur;
                     st = A_RCV;
-                    buf[cont] = cur;
-                }
-                else if (cur == 0x7E) {
-                    cont = 0;
-                }
-                else {
-                    cont = -1; 
-                    st = start;
-                }
+                } 
+                else if (cur == 0x7E) st = FLAG_RCV;
                 break;
             
             case A_RCV:
-                if (cur == 0x03) {
+                if (cur == 0x7E) st = FLAG_RCV;
+                else{
+                    c_rcv = cur;
                     st = C_RCV;
-                    buf[cont] = cur;
-                }
-                else if (cur == 0x7E /*FLAG_RCV*/) {
-                    cont = 0; 
-                    st = FLAG_RCV;
-                }
-                else {
-                    cont = -1; 
-                    st = start;
                 }
                 break;
             
             case C_RCV:
-                if (cur == (buf[1] ^ buf[2])) {
-                    st = BCC_OK;
-                    buf[cont] = cur;
-                }
-                else if (cur == 0x7E /*FLAG_RCV*/) {
-                    cont = 0; 
-                    st = FLAG_RCV;
-                }
-                else {
-                    cont = -1; 
-                    st = start; 
-                    printf("BCC1 ERROR!");
-                }
+                if (cur == (a_rcv ^ c_rcv)) st = BCC_OK;
+                else if (cur == 0x7E) st = FLAG_RCV;
                 break;
             
             case BCC_OK:
                 if (cur == 0x7E) {
-                    buf[cont] = cur;
-                    if(xor(buf, cont - 2) == buf[cont - 1]){
-                        if (buf[2] == 0x00) {
-                            send_RR(fd, 1);
-                        }
-                        if (buf[2] == 0x40) {
-                            send_RR(fd, 0);
-                        }
-                        st = stop;
-                    }
-                    else {
-                        if ((frame != buf[2])) {
-                            if (buf[2] == 0x00) {
-                                send_REJ(fd, 0);
-                                }
-                            if (buf[2] == 0x40) {
-                                send_REJ(fd, 1);
-                                }
-                        }
-                        else {
-                            if (buf[2] == 0x00) {
-                                send_RR(fd, 1);
-                            }
-                            if (buf[2] == 0x40) {
-                                send_RR(fd, 0);
-                            }
-                            st = stop;
-                            break;
-                        }
-                        cont = 0; 
+                    if (c_rcv == 0x03) {
+                        send_RR(fd, 0);
                         st = FLAG_RCV;
+                    } else{
+                        send_REJ(fd, j);
+                        st = FLAG_RCV;
+                        }
+                    }else if (c_rcv == 0x00){
+                        if(j == 0){
+                            st = information;
+                        }
+                        else{
+                            send_REJ(fd, 0);
+                            st = FLAG_RCV;
+                        }
+                    } else if (c_rcv == 0x40){
+                        if(j == 1){
+                            st = information;
+                        }
+                        else{
+                            send_REJ(fd, 1);
+                            st = FLAG_RCV;
+                        }
+                    
                     }
 
-                }
-                else {
-                    buf[cont] = cur;
-                }
+                
                 break;
+
+            case information:
+            //end of information packet
+                if (cur == 0x7E) {
+                    if(c_rcv == 0x00){
+                        //trama 0
+                        //tirar o bcc2 do buf e comparar com o xor dos dados
+                        if(buf[i - 2] == 0x7D){
+                            if(buf[i - 1] == 0x5E){
+                                if(t_bcc2 == 0x7E){
+                                    //distuffing
+                                int size = distuffing(buf, i - 3, destuffed);
+                                print_hex(destuffed, size);
+                                    send_RR(fd, 1);
+                                    st = FLAG_RCV;
+
+
+                                }else{
+                                    send_REJ(fd, 0);
+                                    st = FLAG_RCV;
+                                }
+                            }else if(buf[i - 1] == 0x5D){
+                                if(t_bcc2 == 0x7D){
+                                int size = distuffing(buf, i - 3, destuffed);
+                                print_hex(destuffed, size);
+                                    send_RR(fd, 1);
+                                    st = FLAG_RCV;
+                                }else{
+                                    send_REJ(fd, 0);
+                                    st = FLAG_RCV;
+                                }
+                            }
+                        }else{
+                            if(t_bcc2 == buf[i - 1]){
+                                //distuffing
+                                int size = distuffing(buf, i - 2, destuffed);
+                                print_hex(destuffed, size);
+                                send_RR(fd, 1);
+                                st = FLAG_RCV;
+                            }else{
+                                send_REJ(fd, 0);
+                                st = FLAG_RCV;
+                            }
+
+                        }
+
+                    }else{
+                        //trama 1
+                        if(buf[i - 2] == 0x7D){
+                            if(buf[i - 1] == 0x5E){
+                                if(t_bcc2 == 0x7E){
+                                    //
+                                int size = distuffing(buf, i - 3, destuffed);
+                                print_hex(destuffed, size);
+                                    send_RR(fd, 0);
+                                    st = FLAG_RCV;
+
+
+                                }else{
+                                    send_REJ(fd, 1);
+                                    st = FLAG_RCV;
+                                }
+                            }else if(buf[i - 1] == 0x5D){
+                                if(t_bcc2 == 0x7D){
+                                int size = distuffing(buf, i - 3, destuffed);
+                                print_hex(destuffed, size);
+                                    send_RR(fd, 0);
+                                    st = FLAG_RCV;
+                                }else{
+                                    send_REJ(fd, 1);
+                                    st = FLAG_RCV;
+                                }
+                            }
+                        }else{
+                            if(t_bcc2 == buf[i - 1]){
+                                //distuffing
+                                int size = distuffing(buf, i - 2, destuffed);
+                                print_hex(destuffed, size);
+                                send_RR(fd, 0);
+                                st = FLAG_RCV;
+                            }else{
+                                send_REJ(fd, 1);
+                                st = FLAG_RCV;
+                            }
+
+                        }
+                    }
+                
+                    i = 0;
+                    st = FLAG_RCV;
+
+                }else{
+                    //save data
+                    buf[i] = cur;
+                    t_bcc2 ^= cur;
+                    i++;
+                    }
+                
+
+                break;
+                
 
             case stop:
                 send_DISC(fd);
                 break;
-            
         }
-        
-        printf("%d\n", cont);
-
-        cont++;
-
-        //printf(":%s:%d\n", buf, bytes);
-        //if (buf[0] == 0x7E)
     }
+
+
+
+
 
         /* -Pseudo
         if (cur == FLAG_RCV) {st = FLAG_RCV;}
