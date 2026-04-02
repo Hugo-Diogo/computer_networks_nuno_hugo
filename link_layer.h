@@ -8,7 +8,7 @@
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
 #define BAUDRATE B38400
-#define _POSIX_SOURCE 1 // POSIX compliant source
+
 
 #define FALSE 0
 #define TRUE 1
@@ -36,7 +36,7 @@ int build_frame(unsigned char *frame, unsigned char *data, int data_size, int j)
 
 
 
-long distuffing(unsigned char *buf, int size, unsigned char *destuffed);
+
 
 
 
@@ -45,6 +45,6 @@ void send_RR(int fd, int r);
 void send_REJ(int fd, int r);
 
 void send_DISC(int fd);
-void handle_data_packet(unsigned char *buf, FILE* fp);
-FILE* handle_start_packet(unsigned char *buf, int size);
-void handle_end_packet(FILE* fp);
+
+int send_CONN(unsigned char *frame);
+int build_end_packet(unsigned char *packet, long filesize, char *filename);

@@ -1,6 +1,7 @@
 // Wite to serial port in non-canonical mode
 //
 //  Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
+#define _POSIX_SOURCE 1 // POSIX compliant source
 
 #include <fcntl.h>
 #include <signal.h>
@@ -119,8 +120,14 @@ int main(int argc, char *argv[]) {
     perror("tcsetattr");
     exit(-1);
   }
+  unsigned char frame_begin[5];
 
-    send_CONN(fd);
+    int s_begin = send_CONN(frame_begin);
+        if (!send_with_retry(fd, frame_begin, s_begin)) {
+        close(fd);
+        return -1;
+    }
+
 
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,9 +140,11 @@ int main(int argc, char *argv[]) {
 
 
     unsigned char start_packet[512];
+    memset(start_packet, 0, 512);
     int start_size = build_start_packet(start_packet, filesize, filename);
 
     int size = build_frame(frame, start_packet, start_size, 0);
+    print_hex(start_packet, start_size);
 
     if (!send_with_retry(fd, frame, size)) {
         close(fd);
@@ -163,20 +172,28 @@ while((bytes = fread(buf_file, 1, BUF_file_SIZE - 3, file)) != 0){
     memcpy(&buf_application[3], buf_file, bytes);
 
 size = build_frame(frame, buf_application, bytes +3, j);
+print_hex(frame, size);
 j++;
         if (!send_with_retry(fd, frame, size)) {
             close(fd);
             return -1;
         }
     }
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////. end packet. ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-start_packet[0] = 0x03;
-  size = build_frame(frame, start_packet, start_size, j);
+
+    unsigned char end_packet[512];
+    memset(end_packet, 0, 512);
+    int end_size = build_end_packet(end_packet, filesize, filename);
+  size = build_frame(frame, end_packet, end_size, j);
 
   send_with_retry(fd, frame, size);
 
+  print_hex(frame, end_size);
 
 
 
