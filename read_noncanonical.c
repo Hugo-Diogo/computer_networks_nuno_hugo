@@ -23,7 +23,7 @@ After sending the last data packet we need to announce to the recveiver that the
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
-
+#include "link_layer.h"
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
