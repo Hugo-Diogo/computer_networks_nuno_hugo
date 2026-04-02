@@ -45,3 +45,5 @@ void send_RR(int fd, int r);
 void send_REJ(int fd, int r);
 
 void send_DISC(int fd);
+
+void send_CONN(int fd);
