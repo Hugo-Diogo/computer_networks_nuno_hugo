@@ -135,7 +135,8 @@ int main(int argc, char *argv[])
     unsigned char a_rcv; // +1: Save space for the final '\0' char
     unsigned char c_rcv;
     unsigned char t_bcc2 = 0x00;
-    while(1)
+    int b = 0;
+    while(b==0)
     {
         int res = read(fd, &cur, 1);
 
@@ -150,7 +151,10 @@ int main(int argc, char *argv[])
                     a_rcv = cur;
                     t_bcc2 = 0x00;
                     st = A_RCV;
-                } 
+                } else if (cur == A_RX){
+                    a_rcv = A_RX;
+                    st = A_RCV;
+                }
                 else if (cur == 0x7E) st = FLAG_RCV;
                 break;
             
@@ -174,12 +178,15 @@ int main(int argc, char *argv[])
 
                         send_RR(fd, 0);
                         st = FLAG_RCV;
-                    } else{
+                    } else 
+                    {
                         printf("uhhhhhhhhhhhhhhhhhhhhhhh\n");
                         send_REJ(fd, j);
                         st = FLAG_RCV;
                         }
                 }else if (c_rcv == 0x00 || c_rcv == 0x40){
+                            buf[i++] = cur;
+                            t_bcc2 ^= cur;
                             printf("ahhhhhhhhhhhhhhhhhhhhhhh\n");
                             st = information;
 
@@ -195,28 +202,31 @@ case information:
             st = FLAG_RCV;
             break;
         }
+        if (buf[0] == 0x03) {
+                    printf("END packet\n");
+                    st = stop;
+                    break;
+        }
 
         // 🔴 1. DESTUFF PRIMEIRO (IMPORTANTE)
         long size = distuffing(buf, i, destuffed);
-        print_hex(destuffed, size);
+        print_hex(buf, i);
 
-        if (size < 1) {
-            st = FLAG_RCV;
-            break;
-        }
 
         // 🔴 2. SEPARAR BCC2 (já destuffed)
         unsigned char received_bcc2 = destuffed[size - 1];
-
+        unsigned char link_app[503];
         // 🔴 3. CALCULAR BCC2
         unsigned char calc_bcc2 = 0x00;
+        long size_app = 0;
         for (int k = 0; k < size - 1; k++) {
             calc_bcc2 ^= destuffed[k];
         }
 
+        printf("BCC2 Tx: %d\nBCC2 Rx: %d\n", received_bcc2, calc_bcc2);
+
         // DEBUG (opcional)
         // printf("BCC calc=%02X recv=%02X\n", calc_bcc2, received_bcc2);
-
         if (calc_bcc2 == received_bcc2) {
 
             print_hex(destuffed, size);
@@ -234,19 +244,14 @@ case information:
                     if (f_file)
                         handle_data_packet(destuffed, f_file);
                 }
-                else if (destuffed[0] == 0x03) {
-                    printf("END packet\n");
-                    handle_end_packet(f_file);
-                    st = stop;
-                }
 
                 // 🔥 RR
                 if (j == 0) {
-                    printf("OK! RR1");
+                    printf("OK! RR1\n");
                     send_RR(fd, 1);
                     j = 1;
                 } else {
-                    printf("OK! RR0");
+                    printf("OK! RR0\n");
                     send_RR(fd, 0);
                     j = 0;
                 }
@@ -254,23 +259,30 @@ case information:
             } else {
                 // 🔁 duplicada
                 if (j == 0) {
-                    printf("RR1 DUP"); send_RR(fd, 1);}
+                    printf("RR1 DUP\n"); send_RR(fd, 1);}
                 else {
-                    printf("RR0 DUP"); send_RR(fd, 0);}
+                    printf("RR0 DUP\n"); send_RR(fd, 0);}
             }
 
         } else {
             // ❌ erro BCC2
             if (c_rcv == 0x00){
-                    printf("ERRO! 0"); send_REJ(fd, 0);}
+                    printf("ERRO! 0\n"); send_REJ(fd, 0);
+                                    printf("END packet\n");
+                    st = stop;
+                    break;}
             else{
-                    printf("ERRO! 1"); send_REJ(fd, 1);}
+                    printf("ERRO! 1\n"); send_REJ(fd, 1);
+                                    printf("END packet\n");
+                    st = stop;
+                    break;}
         }
 
         // reset
         i = 0;
         st = FLAG_RCV;
     }
+
     else {
         if (i < BUF_SIZE) {
             buf[i++] = cur;
@@ -284,6 +296,7 @@ case information:
             case stop:
                 send_DISC(fd);
                 handle_end_packet(f_file);
+                b = 1;
                 break;
         }
     }

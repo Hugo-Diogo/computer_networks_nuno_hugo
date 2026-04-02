@@ -322,21 +322,26 @@ void send_DISC(int fd) {
 }
 
 
-long distuffing(unsigned char *buf, int size, unsigned char *destuffed) {
+long distuffing(unsigned char *input, int size, unsigned char *output) {
     int j = 0;
     for (int i = 0; i < size; i++) {
-        if (buf[i] == 0x7D) {
-            if (buf[i + 1] == 0x5E) {
-                destuffed[j++] = 0x7E;
-                i++;
+        if (input[i] == 0x7D) {
+            if((i + 1) >= size){
+                break;
             }
-            else if (buf[i + 1] == 0x5D) {
-                destuffed[j++] = 0x7D;
-                i++;
+            if (input[i + 1] == 0x5E) {
+                output[j] = 0x7E;
+                j++;
             }
+            else if (input[i + 1] == 0x5D) {
+                output[j] = 0x7D;
+                j++;
+            }
+            i++;
         }
         else {
-            destuffed[j++] = buf[i];
+            output[j] = input[i];
+            j++;
         }
     }
     return j;
