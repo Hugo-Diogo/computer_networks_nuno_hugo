@@ -12,39 +12,24 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+#include "link_layer.h"
 
-// Baudrate settings are defined in <asm/termbits.h>, which is
-// included by <termios.h>
-#define BAUDRATE B38400
-#define _POSIX_SOURCE 1 // POSIX compliant source
 
-#define FALSE 0
-#define TRUE 1
+extern volatile int STOP;
+extern int alarmEnabled;
+extern int alarmCount;
 
-#define BUF_SIZE 1024
-
-volatile int STOP = FALSE;
-
-int alarmEnabled = FALSE;
-int alarmCount = 0;
 unsigned char buf_temp = {0};
 
-//-------------------------------------------------------------functions
 
-// Alarm function handler.
-// This function will run whenever the signal SIGALRM is received.
-void alarmHandler(int signal) {
-  alarmEnabled = FALSE;
-  alarmCount++;
 
-  printf("Alarm #%d received\n", alarmCount);
-}
+
+
+
 
 //--------------------------------------------------------------------main
 int main(int argc, char *argv[]) {
 
-  srand(time(NULL));
-  int value = rand();
   // Set alarm function handler.
   // Install the function signal to be automatically invoked when the timer
   // expires, invoking in its turn the user function alarmHandler
@@ -54,6 +39,28 @@ int main(int argc, char *argv[]) {
     perror("sigaction");
     exit(1);
   }
+
+  char* path = choose_file();
+    FILE* file = open_file(path);
+
+
+    // tamanho
+    fseek(file, 0, SEEK_END);
+    long filesize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    // nome do ficheiro
+    char* filename = strrchr(path, '/');
+
+    if (filename != NULL)
+        filename++;
+    else
+        filename = path;
+
+
+
+
+
 
   // Program usage: Uses either COM1 or COM2
   const char *serialPortName = argv[1];
@@ -68,7 +75,8 @@ int main(int argc, char *argv[]) {
 
   // Open serial port device for reading and writing, and not as controlling tty
   // because we don't want to get killed if linenoise sends CTRL-C.
-  int fd = open(serialPortName, O_RDWR | O_NOCTTY);
+  int fd = llopen(serialPortName);
+
 
   if (fd < 0) {
     perror(serialPortName);
@@ -112,90 +120,66 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
 
-  printf("New termios structure set\n");
 
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////. start packet. ////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Create string to send
-  unsigned char buf[BUF_SIZE] = {0};
+  unsigned char frame[BUF_SIZE];
 
-  /*for (int i = 0; i < BUF_SIZE; i++)
-  {
-      buf[i] = 'a' + i % 26;
-  } */
-  // Definition of buffer
-  for (int j = 0; j < 4; j++) {
 
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    if (j % 2 == 0) {
-      buf[2] = 0x00;
-    } else {
-      buf[2] = 0x40;
+
+
+    unsigned char start_packet[512];
+    int start_size = build_start_packet(start_packet, filesize, filename);
+
+    int size = build_frame(frame, start_packet, start_size, 0);
+
+    if (!send_with_retry(fd, frame, size)) {
+        close(fd);
+        return -1;
     }
 
-    buf[3] = buf[1] ^ buf[2];
-    int hn = 0x00;
-    int count = 0;
-    for (int i = 4; i <= 500; i++) {
-      buf[i] = rand() % 256;
-      count++;
 
-      if (buf[i] == 0x7E) {
-        buf[i] = 0x7D;
-        hn = hn ^ buf[i];
-        i++;
-        buf[i] = 0x5E;
-        hn = hn ^ buf[i];
-        count++;
-      } else {
-        hn = hn ^ buf[i];
-      }
+
+  
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////. data packet. ////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int bytes = 0;
+unsigned char buf_file[BUF_file_SIZE]= {0};
+unsigned char buf_application[BUF_file_SIZE] = {0};
+int j = 1;
+while((bytes = fread(buf_file, 1, BUF_file_SIZE - 3, file)) != 0){
+
+    buf_application[0] = 1;
+    buf_application[1] = (bytes >> 8) & 0xFF;
+    buf_application[2] = bytes & 0xFF;
+
+
+    memcpy(&buf_application[3], buf_file, bytes);
+
+size = build_frame(frame, buf_application, bytes +3, j);
+j++;
+        if (!send_with_retry(fd, frame, size)) {
+            close(fd);
+            return -1;
+        }
     }
-    buf[4 + count] = hn;
-    buf[5 + count] = buf[0];
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////. end packet. ////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+start_packet[0] = 0x03;
+  size = build_frame(frame, start_packet, start_size, j);
 
-    buf_temp = 0x01;
+  send_with_retry(fd, frame, size);
 
-    while (alarmCount < 4) {
-      if (alarmEnabled == FALSE) {
-        alarm(3); // Set alarm to be triggered in 3s
-        alarmEnabled = TRUE;
 
-        printf("Alarm configured\n");
 
-        // In non-canonical mode, '\n' does not end the writing.
-        // Test this condition by placing a '\n' in the middle of the buffer.
-        // The whole buffer must be sent even with the '\n'.
-        // buf[5] = '\n';
 
-        int bytes = write(fd, buf, count + 6);
-        printf("%d bytes written\n", bytes);
-      }
-      unsigned char buf_receive[5];
-      int bytes_write = read(fd, buf_receive, 5);
+    tcsetattr(fd, TCSANOW, &oldtio);
+    close(fd);
 
-      if (bytes_write != -1 && buf_receive[2] == 0x01) {
-        alarm(0);
-        alarmCount = 4;
-        /*for (int i = 0; i < sizeof(buf); i++) {
-          printf("var = 0x%02X\n", buf[i]);
-        }*/
-        printf("Got an answer\n");
-      } else {
-        printf("Got NO answer\n");
-        break;
-      }
-    }
-
-    // Wait until all bytes have been written to the serial port
-    sleep(1);
-
-    // Restore the old port settings
-    if (tcsetattr(fd, TCSANOW, &oldtio) == -1) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-  }
-  close(fd);
-
-  return 0;
+    return 0;
 }
