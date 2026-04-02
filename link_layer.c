@@ -343,4 +343,57 @@ long distuffing(unsigned char *buf, int size, unsigned char *destuffed) {
 }
 
 
+FILE* handle_start_packet(unsigned char *buf, int size) {
 
+    FILE* fp = NULL;
+    char filename[256] = {"\n"};
+    int i = 1; // começa depois do C
+
+    while (i < size) {
+
+        unsigned char T = buf[i++];
+        unsigned char L = buf[i++];
+
+        if (T == 1) { // nome do ficheiro
+
+            memcpy(filename, &buf[i], L);
+            filename[L] = '\0';
+
+            printf("Filename: %s\n", filename);
+
+            fp = fopen(filename, "wb");
+
+            if (fp == NULL) {
+                perror("Error opening file");
+                exit(1);
+            }
+        }
+
+        // T == 0 → tamanho (podes guardar se quiseres)
+
+        i += L;
+    }
+    return fp;
+}
+
+void handle_data_packet(unsigned char *buf, FILE* fp) {
+
+    int data_size = buf[1] * 256 + buf[2];
+
+    if (fp != NULL) {
+        fwrite(&buf[3], 1, data_size, fp);
+    }
+
+    printf("Wrote %d bytes\n", data_size);
+}
+
+
+void handle_end_packet(FILE* fp) {
+
+    if (fp != NULL) {
+        fclose(fp);
+        fp = NULL;
+    }
+
+    printf("File transfer complete\n");
+}

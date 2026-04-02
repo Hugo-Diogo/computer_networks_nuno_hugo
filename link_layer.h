@@ -45,3 +45,6 @@ void send_RR(int fd, int r);
 void send_REJ(int fd, int r);
 
 void send_DISC(int fd);
+void handle_data_packet(unsigned char *buf, FILE* fp);
+FILE* handle_start_packet(unsigned char *buf, int size);
+void handle_end_packet(FILE* fp);

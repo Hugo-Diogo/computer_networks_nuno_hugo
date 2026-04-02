@@ -36,7 +36,7 @@ After sending the last data packet we need to announce to the recveiver that the
 
 #define BUF_SIZE 1024
 
-
+FILE *f_file;
 enum state {start, FLAG_RCV, A_RCV, C_RCV, information, BCC_OK, stop};
 
 char xor(unsigned char array[], int cont){
@@ -137,7 +137,9 @@ int main(int argc, char *argv[])
     unsigned char t_bcc2 = 0x00;
     while(1)
     {
-        read(fd, &cur, 1);
+        int res = read(fd, &cur, 1);
+
+        if (res <= 0) continue;
         switch(st){
             case start:
                 if (cur == 0x7E) st = FLAG_RCV;
@@ -146,6 +148,7 @@ int main(int argc, char *argv[])
             case FLAG_RCV:
                 if (cur == 0x03){
                     a_rcv = cur;
+                    t_bcc2 = 0x00;
                     st = A_RCV;
                 } 
                 else if (cur == 0x7E) st = FLAG_RCV;
@@ -174,134 +177,129 @@ int main(int argc, char *argv[])
                         send_REJ(fd, j);
                         st = FLAG_RCV;
                         }
-                    }else if (c_rcv == 0x00){
-                        if(j == 0){
-                            st = information;
-                        }
-                        else{
-                            send_REJ(fd, 0);
-                            st = FLAG_RCV;
-                        }
-                    } else if (c_rcv == 0x40){
-                        if(j == 1){
-                            st = information;
-                        }
-                        else{
-                            send_REJ(fd, 1);
-                            st = FLAG_RCV;
-                        }
-                    
-                    }
+                }else if (c_rcv == 0x00 || c_rcv == 0x40){
 
+                            st = information;
+
+                }
                 
                 break;
 
             case information:
-            //end of information packet
-                if (cur == 0x7E) {
-                    if(c_rcv == 0x00){
-                        //trama 0
-                        //tirar o bcc2 do buf e comparar com o xor dos dados
-                        if(buf[i - 2] == 0x7D){
-                            if(buf[i - 1] == 0x5E){
-                                if(t_bcc2 == 0x7E){
-                                    //distuffing
-                                long size = distuffing(buf, i - 3, destuffed);
-                                print_hex(destuffed, size);
-                                    send_RR(fd, 1);
-                                    st = FLAG_RCV;
 
+    if (cur == 0x7E) {
 
-                                }else{
-                                    send_REJ(fd, 0);
-                                    st = FLAG_RCV;
-                                }
-                            }else if(buf[i - 1] == 0x5D){
-                                if(t_bcc2 == 0x7D){
-                                long size = distuffing(buf, i - 3, destuffed);
-                                print_hex(destuffed, size);
-                                    send_RR(fd, 1);
-                                    st = FLAG_RCV;
-                                }else{
-                                    send_REJ(fd, 0);
-                                    st = FLAG_RCV;
-                                }
-                            }
-                        }else{
-                            if(t_bcc2 == buf[i - 1]){
-                                //distuffing
-                                long size = distuffing(buf, i - 2, destuffed);
-                                print_hex(destuffed, size);
-                                send_RR(fd, 1);
-                                st = FLAG_RCV;
-                            }else{
-                                send_REJ(fd, 0);
-                                st = FLAG_RCV;
-                            }
+        // 🔴 verificar mínimo
+        if (i < 1) {
+            st = FLAG_RCV;
+            break;
+        }
+        int kj = i - 1;
+        unsigned char received_bcc2 = 0x00;
+        if(buf[i - 1] == 0x5D){
+            received_bcc2 = 0x7D;
+            kj--;
+        }else if(buf[i - 1] == 0x5E)
+        {
+            received_bcc2 = 0x7E;
+            kj--;
+        }
+        else {
+            received_bcc2 = buf[i - 1];
+        }
 
-                        }
+        // 🔴 calcular BCC2 (sem o último byte)
+        unsigned char calc_bcc2 = 0x00;
+        for (int k = 0; k < kj; k++) {
+            calc_bcc2 ^= buf[k];
+        }
 
-                    }else{
-                        //trama 1
-                        if(buf[i - 2] == 0x7D){
-                            if(buf[i - 1] == 0x5E){
-                                if(t_bcc2 == 0x7E){
-                                    //
-                                long size = distuffing(buf, i - 3, destuffed);
-                                print_hex(destuffed, size);
-                                    send_RR(fd, 0);
-                                    st = FLAG_RCV;
+        if (calc_bcc2 == received_bcc2) {
 
+            // ✔️ BCC OK → destuffing
+            long size = distuffing(buf, kj, destuffed);
 
-                                }else{
-                                    send_REJ(fd, 1);
-                                    st = FLAG_RCV;
-                                }
-                            }else if(buf[i - 1] == 0x5D){
-                                if(t_bcc2 == 0x7D){
-                                long size = distuffing(buf, i - 3, destuffed);
-                                print_hex(destuffed, size);
-                                    send_RR(fd, 0);
-                                    st = FLAG_RCV;
-                                }else{
-                                    send_REJ(fd, 1);
-                                    st = FLAG_RCV;
-                                }
-                            }
-                        }else{
-                            if(t_bcc2 == buf[i - 1]){
-                                //distuffing
-                                long size = distuffing(buf, i - 2, destuffed);
-                                print_hex(destuffed, size);
-                                send_RR(fd, 0);
-                                st = FLAG_RCV;
-                            }else{
-                                send_REJ(fd, 1);
-                                st = FLAG_RCV;
-                            }
+            print_hex(destuffed, size);
 
-                        }
+            // 🔥 AQUI entra a lógica da sequência
+            if (c_rcv == 0x00) { // trama 0
+
+                if (j == 0) {
+                    if(destuffed[0] == 0x02){
+                        printf("Received START packet\n");
+                        f_file = handle_start_packet(destuffed, size);
+                    } else if(destuffed[0] == 0x03){
+                        printf("Received END packet\n");
+                        st = stop;
                     }
-                
-                    i = 0;
-                    st = FLAG_RCV;
-
-                }else{
-                    //save data
-                    buf[i] = cur;
-                    t_bcc2 ^= cur;
-                    i++;
+                    else {
+                        printf("Received DATA packet\n");
+                        handle_data_packet(destuffed, f_file);
+                        send_RR(fd, 1);
+                        j = 1;
                     }
-                
 
-                break;
+
+
+                }
+                else {
+                    // duplicada
+                    send_RR(fd, 1);
+                }
+            }
+            else if (c_rcv == 0x40) { // trama 1
+
+                if (j == 1) {
+                    if(destuffed[0] == 0x02){
+                        printf("Received START packet\n");
+                        f_file = handle_start_packet(destuffed, size);
+                    } else if(destuffed[0] == 0x03){
+                        printf("Received END packet\n");
+                        st = stop;
+                    }
+                    else {
+                        printf("Received DATA packet\n");
+                        handle_data_packet(destuffed, f_file);
+                        send_RR(fd, 0);
+                        j = 0;
+                    }
+
+
+                }
+                else {
+                    // duplicada
+                    send_RR(fd, 0);
+                }
+            }
+
+        } else {
+            // ❌ erro BCC2
+            if (c_rcv == 0x00)
+                send_REJ(fd, 0);
+            else
+                send_REJ(fd, 1);
+        }
+
+        // reset
+        i = 0;
+        t_bcc2 = 0x00;
+        st = FLAG_RCV;
+    }
+    else {
+        // guardar dados
+        if (i < BUF_SIZE) {
+            buf[i++] = cur;
+        }
+    }
+
+    break;
                 
 
             case stop:
                 send_DISC(fd);
+                handle_end_packet(f_file);
                 break;
         }
-        sleep(1);
     }
 
 
