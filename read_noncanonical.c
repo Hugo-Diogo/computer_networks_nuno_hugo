@@ -50,16 +50,7 @@ char xor(unsigned char array[], int cont){
 int main(int argc, char *argv[])
 {   
 
-    //STATES
 
-    /* -Pseudo
-    if (cur == FLAG_RCV) {st = FLAG_RCV;}
-    if (cur == A_RCV) {st = A_RCV;}
-    if ((st == A_RCV) && (C_RCV == 1)) {st = C_RCV;}
-    if ((A && C) == BCC) {st = BCC_OK;}
-    if (cur == FLAG_RCV) {st = stop;}
-    if (cur == Other_RCV) {st = start;}
-    */
 
     enum state st = start;
 
@@ -132,13 +123,14 @@ int main(int argc, char *argv[])
     unsigned char destuffed[BUF_file_SIZE];
     int i = 0;
     int j = 0;
-    unsigned char a_rcv; // +1: Save space for the final '\0' char
+    unsigned char a_rcv; 
     unsigned char c_rcv;
     unsigned char t_bcc2 = 0x00;
     int b = 0;
     while(b==0)
     {
         int res = read(fd, &cur, 1);
+        printf("Received byte: %02X\n", cur);
 
         if (res <= 0) continue;
         switch(st){
@@ -174,20 +166,17 @@ int main(int argc, char *argv[])
             case BCC_OK:
                 if (cur == 0x7E) {
                     if (c_rcv == 0x03) {
-                        printf("0x7E \n 0x03 \n 0x00 \n 0x03 \n 0x7E\n");
 
                         send_RR(fd, 0);
                         st = FLAG_RCV;
                     } else 
                     {
-                        printf("uhhhhhhhhhhhhhhhhhhhhhhh\n");
                         send_REJ(fd, j);
                         st = FLAG_RCV;
                         }
                 }else if (c_rcv == 0x00 || c_rcv == 0x40){
                             buf[i++] = cur;
                             t_bcc2 ^= cur;
-                            printf("ahhhhhhhhhhhhhhhhhhhhhhh\n");
                             st = information;
 
                 }
@@ -202,21 +191,21 @@ case information:
             st = FLAG_RCV;
             break;
         }
-        if (buf[0] == 0x03) {
+
+
+        // DESTUFF PRIMEIRO (IMPORTANTE)
+        long size = distuffing(buf, i, destuffed);
+        print_hex(buf, i);
+        if (destuffed[0] == 0x03) {
                     printf("END packet\n");
                     st = stop;
                     break;
         }
 
-        // 🔴 1. DESTUFF PRIMEIRO (IMPORTANTE)
-        long size = distuffing(buf, i, destuffed);
-        print_hex(buf, i);
-
-
-        // 🔴 2. SEPARAR BCC2 (já destuffed)
+        // SEPARAR BCC2 (já destuffed)
         unsigned char received_bcc2 = destuffed[size - 1];
         unsigned char link_app[503];
-        // 🔴 3. CALCULAR BCC2
+        // CALCULAR BCC2
         unsigned char calc_bcc2 = 0x00;
         long size_app = 0;
         for (int k = 0; k < size - 1; k++) {
@@ -225,16 +214,15 @@ case information:
 
         printf("BCC2 Tx: %d\nBCC2 Rx: %d\n", received_bcc2, calc_bcc2);
 
-        // DEBUG (opcional)
-        // printf("BCC calc=%02X recv=%02X\n", calc_bcc2, received_bcc2);
+
         if (calc_bcc2 == received_bcc2) {
 
             print_hex(destuffed, size);
 
-            // 🔥 sequência correta
+            // sequência correta
             if ((c_rcv == 0x00 && j == 0) || (c_rcv == 0x40 && j == 1)) {
 
-                // 🔥 APPLICATION LAYER
+                // APPLICATION LAYER
                 if (destuffed[0] == 0x02) {
                     printf("START packet\n");
                     f_file = handle_start_packet(destuffed, size);
@@ -245,7 +233,7 @@ case information:
                         handle_data_packet(destuffed, f_file);
                 }
 
-                // 🔥 RR
+                // RR
                 if (j == 0) {
                     printf("OK! RR1\n");
                     send_RR(fd, 1);
@@ -257,7 +245,7 @@ case information:
                 }
 
             } else {
-                // 🔁 duplicada
+                // duplicada
                 if (j == 0) {
                     printf("RR1 DUP\n"); send_RR(fd, 1);}
                 else {
@@ -265,16 +253,17 @@ case information:
             }
 
         } else {
-            // ❌ erro BCC2
+            // erro BCC2
             if (c_rcv == 0x00){
-                    printf("ERRO! 0\n"); send_REJ(fd, 0);
-                                    printf("END packet\n");
-                    st = stop;
+                    printf("ERRO! 0\n"); 
+                    send_REJ(fd, 0);
+
+                    st = start;
                     break;}
             else{
-                    printf("ERRO! 1\n"); send_REJ(fd, 1);
-                                    printf("END packet\n");
-                    st = stop;
+                    printf("ERRO! 1\n"); 
+                    send_REJ(fd, 1);
+                    st = start;
                     break;}
         }
 
@@ -303,18 +292,6 @@ case information:
 
 
 
-
-
-        /* -Pseudo
-        if (cur == FLAG_RCV) {st = FLAG_RCV;}
-        if (cur == A_RCV) {st = A_RCV;}
-        if ((st == A_RCV) && (C_RCV == 1)) {st = C_RCV;}
-        if ((A && C) == BCC) {st = BCC_OK;}
-        if (cur == FLAG_RCV) {st = stop;}
-        if (cur == Other_RCV) {st = start;}
-        */
-
-        
 
         
         
