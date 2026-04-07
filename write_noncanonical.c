@@ -152,10 +152,35 @@ int main(int argc, char *argv[]) {
     size = build_frame(frame, buf_application, bytes + 3, j);
     print_hex(frame, size);
     j++;
-    if (!send_with_retry(fd, frame, size)) {
-      close(fd);
-      return -1;
+if (res_send == 0) {
+
+    printf("Connection lost... reconnecting\n");
+
+    close(fd);
+
+    while (1) {
+        fd = llopen(serialPortName);
+        if (fd >= 0) break;
+        sleep(1);
     }
+
+    tcsetattr(fd, TCSANOW, &newtio);
+
+    continue;
+}
+
+// 🔥 RESYNC
+if (res_send == 2) {
+    j = 0;
+    fseek(file, -bytes, SEEK_CUR); // volta atrás
+    continue;
+}
+
+if (res_send == 3) {
+    j = 1;
+    fseek(file, -bytes, SEEK_CUR);
+    continue;
+}
   }
   printf("last packet sent.\n");
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
