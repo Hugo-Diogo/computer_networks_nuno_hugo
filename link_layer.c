@@ -217,25 +217,25 @@ int send_with_retry(int fd, unsigned char *frame, int size) {
 
     if (r == 5) {
 
-    printf("RX: ");
-    print_hex(resp, 5);
+      printf("RX: ");
+      print_hex(resp, 5);
 
-    // 🔥 RESYNC DETECTADO
-    if (resp[2] == C_RESYNC_0) {
+      // 🔥 RESYNC DETECTADO
+      if (resp[2] == C_RESYNC_0) {
         printf("RESYNC → receiver wants 0\n");
         return 2;
-    }
-    if (resp[2] == C_RESYNC_1) {
+      }
+      if (resp[2] == C_RESYNC_1) {
         printf("RESYNC → receiver wants 1\n");
         return 3;
-    }
+      }
 
-    if (resp[2] == 0x05 || resp[2] == 0x85 || resp[2] == 0x0B) {
+      if (resp[2] == 0x05 || resp[2] == 0x85 || resp[2] == 0x0B) {
         printf("RR received ✅\n");
         alarm(0);
         return 1;
+      }
     }
-}
   }
 
   printf("❌ No response after 3 tries. Exiting.\n");

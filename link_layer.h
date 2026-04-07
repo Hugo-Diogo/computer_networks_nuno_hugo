@@ -18,35 +18,30 @@
 #define BUF_SIZE 1024
 #define BUF_file_SIZE 500
 
-
 extern volatile int STOP;
 extern int alarmEnabled;
 extern int alarmCount;
 
-
 void print_hex(unsigned char *buf, int size);
-char* choose_file();
+char *choose_file();
 int llopen(const char *serialPortName);
 
-FILE* open_file(const char* filePath);
+FILE *open_file(const char *filePath);
 
 int build_start_packet(unsigned char *packet, long filesize, char *filename);
 void alarmHandler();
 
-int send_with_retry(int fd, unsigned char *frame, int size, int j);
-int build_frame(unsigned char *frame, unsigned char *data, int data_size, int j);
-
-
+int send_with_retry(int fd, unsigned char *frame, int size);
+int build_frame(unsigned char *frame, unsigned char *data, int data_size,
+                int j);
 
 long distuffing(unsigned char *buf, int size, unsigned char *destuffed);
-
-
 
 void send_RR(int fd, int r);
 
 void send_REJ(int fd, int r);
 
 void send_DISC(int fd);
-void handle_data_packet(unsigned char *buf, FILE* fp);
-FILE* handle_start_packet(unsigned char *buf, int size);
-void handle_end_packet(FILE* fp);
+void handle_data_packet(unsigned char *buf, FILE *fp);
+FILE *handle_start_packet(unsigned char *buf, int size);
+void handle_end_packet(FILE *fp);
