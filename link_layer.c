@@ -427,3 +427,21 @@ void handle_end_packet(FILE *fp) {
 
   printf("File transfer complete\n");
 }
+
+void send_RESYNC(int fd, int expected) {
+
+  unsigned char frame[5];
+
+  frame[0] = FLAG;
+  frame[1] = A_RX;
+
+  if (expected == 0)
+    frame[2] = C_RESYNC_0;
+  else
+    frame[2] = C_RESYNC_1;
+
+  frame[3] = frame[1] ^ frame[2];
+  frame[4] = FLAG;
+
+  write(fd, frame, 5);
+}
