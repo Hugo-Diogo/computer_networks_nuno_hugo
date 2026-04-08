@@ -132,37 +132,36 @@ int main(int argc, char *argv[])
         int res = read(fd, &cur, 1);
         printf("Received byte: %02X\n", cur);
 
-        if (res < 0) {
-            close (fd);
+     if (res < 0) {
 
-            printf("Connection lost... Waiting...\n");
+    close(fd);
 
-            while(1){
-                fd = open(serialPortName, O_RDWR | O_NOCTTY);
+    printf("Connection lost... Waiting...\n");
 
-                if (fd >= 0) {
-                    if (tcgetattr(fd, &oldtio) == -1) {
-                        exit(-1);
-                    }
+    while (1) {
+        fd = open(serialPortName, O_RDWR | O_NOCTTY);
 
-                    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
-                        exit(-1);
-                    }
-                    st = start;
-                    i = 0;
-                    t_bcc2 = 0;
+        if (fd >= 0) {
 
-                    break;
-                }
-                sleep(1);
+            tcsetattr(fd, TCSANOW, &newtio);
 
-            }
+            printf("Reconnected! Sending RESYNC...\n");
 
-            printf("Connection reestablished!\n");
+            send_RESYNC(fd, j);
 
-            continue;
-
+            break;
         }
+
+        sleep(1);
+    }
+
+    // ⚠ NÃO resetar j !!!
+    st = FLAG_RCV;
+    i = 0;
+    t_bcc2 = 0;
+
+    continue;
+}
 
         if (res == 0) continue;
 
