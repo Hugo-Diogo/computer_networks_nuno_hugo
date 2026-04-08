@@ -46,3 +46,5 @@ void handle_data_packet(unsigned char *buf, FILE *fp);
 FILE *handle_start_packet(unsigned char *buf, int size);
 void handle_end_packet(FILE *fp);
 void send_RESYNC(int fd, int expected);
+int send_CONN(unsigned char *frame);
+int build_end_packet(unsigned char *packet, long filesize, char *filename);
