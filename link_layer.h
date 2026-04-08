@@ -45,3 +45,4 @@ void send_DISC(int fd);
 void handle_data_packet(unsigned char *buf, FILE *fp);
 FILE *handle_start_packet(unsigned char *buf, int size);
 void handle_end_packet(FILE *fp);
+void send_RESYNC(int fd, int expected);
