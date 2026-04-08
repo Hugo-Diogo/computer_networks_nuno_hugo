@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 
             printf("Reconnected! Sending RESYNC...\n");
 
-            send_RESYNC(fd, j);
+            send_REJ(fd, j);
 
             break;
         }
@@ -219,10 +219,7 @@ case information:
 
     if (cur == 0x7E) {
 
-        if (i < 1) {
-            st = FLAG_RCV;
-            break;
-        }
+
 
 
         // DESTUFF PRIMEIRO (IMPORTANTE)
@@ -236,7 +233,6 @@ case information:
 
         // SEPARAR BCC2 (já destuffed)
         unsigned char received_bcc2 = destuffed[size - 1];
-        unsigned char link_app[503];
         // CALCULAR BCC2
         unsigned char calc_bcc2 = 0x00;
         long size_app = 0;
@@ -279,9 +275,16 @@ case information:
             } else {
                 // duplicada
                 if (j == 0) {
-                    printf("RR1 DUP\n"); send_RR(fd, 1);}
-                else {
-                    printf("RR0 DUP\n"); send_RR(fd, 0);}
+                    printf("RR1 DUP\n"); 
+                    send_RR(fd, 1);
+                                        i = 0;
+                    st = start;
+                }else {
+                    printf("RR0 DUP\n"); 
+                    send_RR(fd, 0);
+                                        i = 0;
+                    st = start;
+                }
             }
 
         } else {
@@ -289,19 +292,20 @@ case information:
             if (c_rcv == 0x00){
                     printf("ERRO! 0\n"); 
                     send_REJ(fd, 0);
-
+                    i = 0;
                     st = start;
                     break;}
             else{
                     printf("ERRO! 1\n"); 
                     send_REJ(fd, 1);
+                                        i = 0;
                     st = start;
                     break;}
         }
 
         // reset
         i = 0;
-        st = FLAG_RCV;
+        st = start;
     }
 
     else {
