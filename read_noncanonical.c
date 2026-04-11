@@ -132,36 +132,8 @@ int main(int argc, char *argv[])
         int res = read(fd, &cur, 1);
         printf("Received byte: %02X\n", cur);
 
-     if (res < 0) {
 
-    close(fd);
-
-    printf("Connection lost... Waiting...\n");
-
-    while (1) {
-        fd = open(serialPortName, O_RDWR | O_NOCTTY);
-
-        if (fd >= 0) {
-
-            tcsetattr(fd, TCSANOW, &newtio);
-
-            printf("Reconnected! Sending RESYNC...\n");
-
-            send_REJ(fd, j);
-
-            break;
-        }
-
-        sleep(1);
-    }
-
-    // ⚠ NÃO resetar j !!!
-    st = FLAG_RCV;
-    i = 0;
-    t_bcc2 = 0;
-
-    continue;
-}
+        //printf("State: %d\n",st);
 
         if (res == 0) continue;
 
@@ -224,9 +196,13 @@ case information:
 
         // DESTUFF PRIMEIRO (IMPORTANTE)
         long size = distuffing(buf, i, destuffed);
-        print_hex(buf, i);
+        printf("%02X\n", destuffed[0]);
+        //print_hex(buf, i);
         if (destuffed[0] == 0x03) {
                     printf("END packet\n");
+                    send_DISC(fd);
+                    handle_end_packet(f_file);
+                    b = 1;
                     st = stop;
                     break;
         }
@@ -266,10 +242,16 @@ case information:
                     printf("OK! RR1\n");
                     send_RR(fd, 1);
                     j = 1;
+
+
+
                 } else {
                     printf("OK! RR0\n");
                     send_RR(fd, 0);
                     j = 0;
+
+
+
                 }
 
             } else {
@@ -305,26 +287,29 @@ case information:
 
         // reset
         i = 0;
-        st = start;
+        st = FLAG_RCV;
+        break;
     }
+
+
 
     else {
         if (i < BUF_SIZE) {
             buf[i++] = cur;
+            break;
         }
     }
 
-    break;
+    
 
-    break;
+    case stop:
+    printf("STOP\n");
 
-            case stop:
-                send_DISC(fd);
-                handle_end_packet(f_file);
-                b = 1;
-                break;
-        }
+        handle_end_packet(f_file);
+        b = 1;
+        break;
     }
+}
 
 
 
