@@ -2,7 +2,7 @@
 //
 //  Modified by: Eduardo Nuno Almeida [enalmeida@fe.up.pt]
 #define _POSIX_SOURCE 1 // POSIX compliant source
-
+#define _POSIX_C_SOURCE 199309L
 #include "link_layer.h"
 #include <fcntl.h>
 #include <signal.h>
@@ -118,8 +118,14 @@ int main(int argc, char *argv[]) {
   ////////////////////////////////////////////////////////. start
   /// packet.///////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Create string to send
+  
+    struct timespec start, end;
+    
+    
+    // Create string to send
   unsigned char frame[BUF_SIZE];
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
   unsigned char start_packet[512];
   memset(start_packet, 0, 512);
@@ -171,6 +177,23 @@ int main(int argc, char *argv[]) {
   send_with_retry(fd, frame, size);
 
   print_hex(frame, end_size);
+
+   clock_gettime(CLOCK_MONOTONIC, &end);
+    
+    double time = 
+            (end.tv_sec - start.tv_sec) + 
+            (end.tv_nsec - start.tv_nsec) / 1e9;
+
+    printf("Transfer time: %f seconds.\n", time);
+    
+    double R = (filesize * 8) / time;
+
+    printf("Rb (Bitrate): %f bps\n", R);
+
+    double C = BAUDRATE;
+    double S = R / C;
+
+    printf("Efficiency S = %f\n", S);
 
   tcsetattr(fd, TCSANOW, &oldtio);
   close(fd);

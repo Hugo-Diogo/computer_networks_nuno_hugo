@@ -202,6 +202,7 @@ int send_with_retry(int fd, unsigned char *frame, int size) {
 
   while (alarmCount < 3) {
 
+
     if (!alarmEnabled) {
       alarm(3);
       alarmEnabled = TRUE;
@@ -214,6 +215,7 @@ int send_with_retry(int fd, unsigned char *frame, int size) {
 
     unsigned char resp[5];
     int r = read(fd, resp, 5);
+printf("%02X\n", resp[2]);
 
 
       if (resp[2] == 0x05 || resp[2] == 0x85 || resp[2] == 0x0B) {
@@ -414,20 +416,4 @@ void handle_end_packet(FILE *fp) {
   printf("File transfer complete\n");
 }
 
-void send_RESYNC(int fd, int expected) {
 
-  unsigned char frame[5];
-
-  frame[0] = FLAG;
-  frame[1] = A_RX;
-
-  if (expected == 0)
-    frame[2] = C_RESYNC_0;
-  else
-    frame[2] = C_RESYNC_1;
-
-  frame[3] = frame[1] ^ frame[2];
-  frame[4] = FLAG;
-
-  write(fd, frame, 5);
-}
