@@ -28,7 +28,7 @@ After sending the last data packet we need to announce to the recveiver that the
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
-#define BAUDRATE 38400
+#define BAUDRATE B38400
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
 #define FALSE 0
