@@ -169,6 +169,12 @@ int main(int argc, char *argv[]) {
   /// packet.///////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+
+   clock_gettime(CLOCK_MONOTONIC, &end);
+    
+    
+
   unsigned char end_packet[512];
   memset(end_packet, 0, 512);
   int end_size = build_end_packet(end_packet, filesize, filename);
@@ -178,9 +184,7 @@ int main(int argc, char *argv[]) {
 
   print_hex(frame, end_size);
 
-   clock_gettime(CLOCK_MONOTONIC, &end);
-    
-    double time = 
+double time = 
             (end.tv_sec - start.tv_sec) + 
             (end.tv_nsec - start.tv_nsec) / 1e9;
 
@@ -194,6 +198,8 @@ int main(int argc, char *argv[]) {
     double S = R / C;
 
     printf("Efficiency S = %f\n", S);
+
+
 
   tcsetattr(fd, TCSANOW, &oldtio);
   close(fd);
