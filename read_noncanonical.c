@@ -303,8 +303,8 @@ case information:
     
 
     case stop:
-    printf("STOP\n");
-
+        printf("STOP\n");
+        send_DISC(fd);
         handle_end_packet(f_file);
         b = 1;
         break;

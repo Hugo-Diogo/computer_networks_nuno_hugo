@@ -329,6 +329,8 @@ void send_REJ(int fd, int r) {
 
 void send_DISC(int fd) {
 
+  printf("DISC\n");
+
   unsigned char frame[5];
 
   frame[0] = FLAG;
@@ -336,6 +338,7 @@ void send_DISC(int fd) {
   frame[2] = 0x0B;
 
   frame[3] = frame[1] ^ frame[2];
+  printf("Frame 3 = %02X\n", frame[3]);
   frame[4] = FLAG;
 
   write(fd, frame, 5);
