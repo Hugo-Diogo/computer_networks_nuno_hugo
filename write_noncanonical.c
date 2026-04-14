@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
 
     printf("Rb (Bitrate): %f bps\n", R);
 
-    double C = BAUDRATE;
+    double C = 38400;
     double S = R / C;
 
     printf("Efficiency S = %f\n", S);
