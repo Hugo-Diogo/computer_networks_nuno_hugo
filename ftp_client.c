@@ -8,7 +8,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#define SERVER_PORT 21
+#define SERVER_PORT 21. // Port 21 is the default FTP control port
 #define BUFFER_SIZE 1024
 
 typedef struct {
@@ -34,30 +34,42 @@ void enterPassiveMode(int sockfd, char *ip, int *port);
 
 int main(int argc, char *argv[]) {
 
+
+    //Verify that the user provided exactly one argument (the FTP URL)
     if(argc != 2) {
         fprintf(stderr, "Usage: %s ftp://[user:password@]host/filepath\n", argv[0]);
         exit(1);
     }
 
-    URLInfo info;
+    URLInfo info; // Structure to hold parsed URL information
 
     parseURL(argv[1], &info);
 
+    //Debugging output: Print the parsed URL components
     printf("User: %s\n", info.user);
     printf("Password: %s\n", info.password);
     printf("Host: %s\n", info.host);
     printf("Path: %s\n", info.path);
     printf("Filename: %s\n", info.filename);
 
+
+    //get the IP address of the host from the parsed URL information
     getIP(info.host, info.ip);
 
+
+    //Debugging output: Print the resolved IP address
     printf("IP: %s\n", info.ip);
+
+    //CREATE CONTROL CONNECTION
 
     int controlSocket = createSocket(info.ip, SERVER_PORT);
 
     readResponse(controlSocket);
 
     char command[512];
+
+
+    //send the USER and PASS commands to authenticate with the FTP server using the credentials from the parsed URL information
 
     sprintf(command, "USER %s\r\n", info.user);
     sendCommand(controlSocket, command);
@@ -70,8 +82,11 @@ int main(int argc, char *argv[]) {
     char passiveIP[64];
     int passivePort;
 
+    //Enter passive mode to prepare for the data connection
     enterPassiveMode(controlSocket, passiveIP, &passivePort);
 
+
+    //CREATE DATA CONNECTION
     int dataSocket = createSocket(passiveIP, passivePort);
 
     sprintf(command, "RETR %s\r\n", info.path);
@@ -178,7 +193,7 @@ void parseURL(char *url, URLInfo *info) {
 }
 
 
-//-------------------------------------------------------------------------------------------- parseURL 
+//-------------------------------------------------------------------------------------------- getIP
 /*
 Objective: Get the IP address of the given host using DNS resolution.
 
@@ -195,6 +210,14 @@ void getIP(char *host, char *ip) {
 
     strcpy(ip, inet_ntoa(*((struct in_addr *) h->h_addr)));
 }
+
+
+
+//-------------------------------------------------------------------------------------------- createSocket
+/*
+Objective: Create a socket and connect to the FTP server at the given IP and port.
+
+*/
 
 int createSocket(char *ip, int port) {
 
@@ -225,7 +248,7 @@ int createSocket(char *ip, int port) {
 
 
 
-//-------------------------------------------------------------------------------------------- parseURL 
+//-------------------------------------------------------------------------------------------- readResponse 
 /*
 Objective: Read the response from the server and return the response code.
 
@@ -271,7 +294,7 @@ int readResponse(int sockfd) {
 
 
 
-//-------------------------------------------------------------------------------------------- parseURL 
+//-------------------------------------------------------------------------------------------- sendCommand
 /*
 Objective: Send a command to the FTP server.
 
@@ -287,7 +310,7 @@ void sendCommand(int sockfd, char *cmd) {
 
 
 
-//-------------------------------------------------------------------------------------------- parseURL 
+//-------------------------------------------------------------------------------------------- enterPassiveMode
 /*
 Objective: Enter passive mode by sending the PASV command to the server and parsing the response to get the IP and port for the data connection.
 
